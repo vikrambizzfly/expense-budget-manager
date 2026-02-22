@@ -96,7 +96,7 @@ export class CategoryService {
       }
     }
 
-    return this.storage.update(Collections.CATEGORIES, id, data);
+    return this.storage.update<Category>(Collections.CATEGORIES, id, data);
   }
 
   /**
@@ -119,9 +119,9 @@ export class CategoryService {
     }
 
     // Soft delete
-    await this.storage.update(Collections.CATEGORIES, id, {
+    await this.storage.update<Category>(Collections.CATEGORIES, id, {
       isActive: false,
-    });
+    } as Partial<Category>);
   }
 }
 

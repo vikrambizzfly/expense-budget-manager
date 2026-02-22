@@ -168,10 +168,10 @@ export class AuthService {
     const hashedPassword = await hashPassword(newPassword);
 
     // Update user
-    await this.storage.update(Collections.USERS, userId, {
+    await this.storage.update<User>(Collections.USERS, userId, {
       password: hashedPassword,
       updatedAt: new Date().toISOString(),
-    });
+    } as Partial<User>);
   }
 
   /**

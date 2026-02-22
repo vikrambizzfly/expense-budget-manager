@@ -8,14 +8,28 @@ import {
   UserRole,
   Category,
   Expense,
+  User,
 } from '@/types/models';
 import { PermissionChecker, PermissionContext } from '../auth/permissions';
 import { dollarsToCents } from '../utils/currency';
 import { BudgetCalculator } from '../budget/BudgetCalculator';
 import { v4 as uuidv4 } from 'uuid';
+import { AuditService } from './AuditService';
 
 export class BudgetService {
   private storage = getStorageAdapter();
+  private auditService = new AuditService();
+
+  /**
+   * Helper to get user for audit logging
+   */
+  private async getUserForAudit(userId: string): Promise<User> {
+    const user = await this.storage.get<User>(Collections.USERS, userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return user;
+  }
 
   /**
    * Get all budgets with filters and permissions
@@ -129,6 +143,11 @@ export class BudgetService {
     };
 
     await this.storage.create(Collections.BUDGETS, budget);
+
+    // Log audit trail
+    const user = await this.getUserForAudit(userId);
+    await this.auditService.logCreate('budget', budget.id, user, budget);
+
     return budget;
   }
 
@@ -169,6 +188,9 @@ export class BudgetService {
       }
     }
 
+    // Store old data for audit
+    const oldData = { ...budget };
+
     // Prepare update data
     const updateData: any = { ...data };
 
@@ -177,7 +199,13 @@ export class BudgetService {
       updateData.amount = dollarsToCents(data.amount);
     }
 
-    return this.storage.update(Collections.BUDGETS, id, updateData);
+    const updated = await this.storage.update<Budget>(Collections.BUDGETS, id, updateData);
+
+    // Log audit trail
+    const user = await this.getUserForAudit(context.userId);
+    await this.auditService.logUpdate('budget', id, user, oldData, updated);
+
+    return updated;
   }
 
   /**
@@ -201,7 +229,14 @@ export class BudgetService {
       throw new Error('Unauthorized: Cannot delete this budget');
     }
 
+    // Store deleted data for audit
+    const deletedData = { ...budget };
+
     await this.storage.delete(Collections.BUDGETS, id);
+
+    // Log audit trail
+    const user = await this.getUserForAudit(context.userId);
+    await this.auditService.logDelete('budget', id, user, deletedData);
   }
 
   /**
@@ -231,7 +266,7 @@ export class BudgetService {
     id: string,
     context: PermissionContext
   ): Promise<Budget> {
-    return this.updateBudget(id, { isActive: false }, context);
+    return this.updateBudget(id, { isActive: false } as Partial<BudgetFormData>, context);
   }
 }
 

@@ -184,6 +184,10 @@ export interface AuditFilters {
   endDate?: string;
 }
 
+export interface AuditLogFilter extends AuditFilters {
+  search?: string;
+}
+
 // API Response Types
 export interface ApiResponse<T> {
   success: boolean;

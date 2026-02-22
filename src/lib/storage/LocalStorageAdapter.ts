@@ -53,12 +53,12 @@ export class LocalStorageAdapter implements IStorageAdapter {
     }
   }
 
-  async get<T extends { id: string }>(
+  async get<T>(
     collection: string,
     id: string
   ): Promise<T | null> {
     const items = this.readCollection<T>(collection);
-    return items.find((item) => item.id === id) || null;
+    return items.find((item: any) => item.id === id) || null;
   }
 
   async getAll<T>(collection: string): Promise<T[]> {

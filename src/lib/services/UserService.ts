@@ -124,7 +124,7 @@ export class UserService {
 
     updateData.updatedAt = new Date().toISOString();
 
-    const updated = await this.storage.update(Collections.USERS, id, updateData);
+    const updated = await this.storage.update<User>(Collections.USERS, id, updateData);
     return this.toSafeUser(updated);
   }
 
@@ -151,10 +151,10 @@ export class UserService {
     }
 
     // Soft delete by deactivating
-    await this.storage.update(Collections.USERS, id, {
+    await this.storage.update<User>(Collections.USERS, id, {
       isActive: false,
       updatedAt: new Date().toISOString(),
-    });
+    } as Partial<User>);
   }
 
   /**

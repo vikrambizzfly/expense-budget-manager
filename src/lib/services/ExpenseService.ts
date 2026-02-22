@@ -6,14 +6,28 @@ import {
   ExpenseFilters,
   UserRole,
   Category,
+  User,
 } from '@/types/models';
 import { PermissionChecker, PermissionContext } from '../auth/permissions';
 import { dollarsToCents } from '../utils/currency';
 import { isDateInRange } from '../utils/date';
 import { v4 as uuidv4 } from 'uuid';
+import { AuditService } from './AuditService';
 
 export class ExpenseService {
   private storage = getStorageAdapter();
+  private auditService = new AuditService();
+
+  /**
+   * Helper to get user for audit logging
+   */
+  private async getUserForAudit(userId: string): Promise<User> {
+    const user = await this.storage.get<User>(Collections.USERS, userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return user;
+  }
 
   /**
    * Get all expenses with filters and permissions
@@ -129,6 +143,11 @@ export class ExpenseService {
     };
 
     await this.storage.create(Collections.EXPENSES, expense);
+
+    // Log audit trail
+    const user = await this.getUserForAudit(userId);
+    await this.auditService.logCreate('expense', expense.id, user, expense);
+
     return expense;
   }
 
@@ -169,6 +188,9 @@ export class ExpenseService {
       }
     }
 
+    // Store old data for audit
+    const oldData = { ...expense };
+
     // Prepare update data
     const updateData: any = { ...data };
 
@@ -180,7 +202,13 @@ export class ExpenseService {
     updateData.updatedBy = context.userId;
     updateData.updatedAt = new Date().toISOString();
 
-    return this.storage.update(Collections.EXPENSES, id, updateData);
+    const updated = await this.storage.update<Expense>(Collections.EXPENSES, id, updateData);
+
+    // Log audit trail
+    const user = await this.getUserForAudit(context.userId);
+    await this.auditService.logUpdate('expense', id, user, oldData, updated);
+
+    return updated;
   }
 
   /**
@@ -204,7 +232,14 @@ export class ExpenseService {
       throw new Error('Unauthorized: Cannot delete this expense');
     }
 
+    // Store deleted data for audit
+    const deletedData = { ...expense };
+
     await this.storage.delete(Collections.EXPENSES, id);
+
+    // Log audit trail
+    const user = await this.getUserForAudit(context.userId);
+    await this.auditService.logDelete('expense', id, user, deletedData);
   }
 
   /**
