@@ -1,0 +1,57 @@
+
+> expense-budget-manager@0.1.0 build
+> prisma generate && next build
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (v7.4.1) to ./node_modules/@prisma/client in 62ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.4s
+  Running TypeScript ...
+  Collecting page data using 9 workers ...
+  Generating static pages using 9 workers (0/24) ...
+  Generating static pages using 9 workers (6/24) 
+  Generating static pages using 9 workers (12/24) 
+  Generating static pages using 9 workers (18/24) 
+✓ Generating static pages using 9 workers (24/24) in 181.1ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /analytics
+├ ƒ /api/audit
+├ ƒ /api/auth/login
+├ ƒ /api/auth/register
+├ ƒ /api/auth/verify
+├ ƒ /api/budgets
+├ ƒ /api/categories
+├ ƒ /api/expenses
+├ ƒ /api/expenses/[id]
+├ ƒ /api/expenses/stats
+├ ƒ /api/init
+├ ƒ /api/users
+├ ○ /audit
+├ ○ /budgets
+├ ○ /categories
+├ ○ /expenses
+├ ƒ /expenses/[id]/edit
+├ ○ /expenses/new
+├ ○ /login
+├ ○ /register
+├ ○ /reports
+└ ○ /users
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
