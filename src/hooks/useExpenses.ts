@@ -34,7 +34,8 @@ export function useExpenses(initialFilters: ExpenseFilters = {}) {
       }
 
       const data = await response.json();
-      setExpenses(data);
+      // Handle both old format (array) and new format (object with expenses array)
+      setExpenses(Array.isArray(data) ? data : (data.expenses || []));
     } catch (err: any) {
       setError(err.message || 'Failed to load expenses');
     } finally {
