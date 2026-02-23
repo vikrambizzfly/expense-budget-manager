@@ -169,7 +169,7 @@ export default function ExpensesPageV2() {
               placeholder="Search expenses by description, notes, or reference..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
@@ -221,7 +221,7 @@ export default function ExpensesPageV2() {
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Categories</option>
                   {categories.map((cat) => (
@@ -239,7 +239,7 @@ export default function ExpensesPageV2() {
                 <select
                   value={paymentMethodFilter}
                   onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Methods</option>
                   {PAYMENT_METHOD_OPTIONS.map((option) => (
@@ -258,7 +258,7 @@ export default function ExpensesPageV2() {
                   type="date"
                   value={startDateFilter}
                   onChange={(e) => setStartDateFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -270,7 +270,7 @@ export default function ExpensesPageV2() {
                   type="date"
                   value={endDateFilter}
                   onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -386,7 +386,12 @@ export default function ExpensesPageV2() {
           {/* Total */}
           <Card className="mt-6 sticky bottom-4 shadow-xl">
             <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold text-gray-900">Total</span>
+              <div>
+                <span className="text-lg font-semibold text-gray-900">Total Shown</span>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {expenses.length} expense{expenses.length !== 1 ? 's' : ''} displayed
+                </p>
+              </div>
               <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 {formatCurrency(Array.isArray(expenses) ? expenses.reduce((sum, exp) => sum + exp.amount, 0) : 0)}
               </span>
