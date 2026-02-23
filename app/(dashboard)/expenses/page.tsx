@@ -31,6 +31,7 @@ export default function ExpensesPageV2() {
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [stats, setStats] = useState<{ totalCount: number; totalAmount: number } | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -40,6 +41,38 @@ export default function ExpensesPageV2() {
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Fetch stats (total count and amount)
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user?.id) return;
+
+      const params = new URLSearchParams();
+      if (categoryFilter) params.append('categoryId', categoryFilter);
+      if (startDateFilter) params.append('startDate', startDateFilter);
+      if (endDateFilter) params.append('endDate', endDateFilter);
+      if (debouncedSearch) params.append('search', debouncedSearch);
+      if (paymentMethodFilter) params.append('paymentMethod', paymentMethodFilter);
+
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/expenses/stats?${params.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, [user?.id, categoryFilter, startDateFilter, endDateFilter, debouncedSearch, paymentMethodFilter]);
 
   // Use improved hook
   const {
@@ -387,13 +420,14 @@ export default function ExpensesPageV2() {
           <Card className="mt-6 sticky bottom-4 shadow-xl">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-lg font-semibold text-gray-900">Total Shown</span>
+                <span className="text-lg font-semibold text-gray-900">Grand Total</span>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {expenses.length} expense{expenses.length !== 1 ? 's' : ''} displayed
+                  {stats ? `Showing ${expenses.length} of ${stats.totalCount}` : `${expenses.length} loaded`}
+                  {hasNextPage && ' • Scroll for more'}
                 </p>
               </div>
               <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {formatCurrency(Array.isArray(expenses) ? expenses.reduce((sum, exp) => sum + exp.amount, 0) : 0)}
+                {stats ? formatCurrency(stats.totalAmount) : formatCurrency(Array.isArray(expenses) ? expenses.reduce((sum, exp) => sum + exp.amount, 0) : 0)}
               </span>
             </div>
           </Card>
