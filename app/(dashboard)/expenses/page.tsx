@@ -388,7 +388,7 @@ export default function ExpensesPageV2() {
             <div className="flex items-center justify-between">
               <span className="text-lg font-semibold text-gray-900">Total</span>
               <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {formatCurrency(expenses.reduce((sum, exp) => sum + exp.amount, 0))}
+                {formatCurrency(Array.isArray(expenses) ? expenses.reduce((sum, exp) => sum + exp.amount, 0) : 0)}
               </span>
             </div>
           </Card>

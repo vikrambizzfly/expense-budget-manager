@@ -60,8 +60,18 @@ export function useExpensesV2(options: UseExpensesOptions = {}) {
     staleTime: 60 * 1000, // 1 minute
   });
 
-  // Flatten all pages into single array
-  const expenses = query.data?.pages.flatMap((page) => page.expenses) ?? [];
+  // Flatten all pages into single array - ensure it's always an array
+  const expenses = query.data?.pages?.flatMap((page) => page?.expenses ?? []) ?? [];
+
+  // Debug logging
+  if (process.env.NODE_ENV === 'development') {
+    console.log('useExpensesV2:', {
+      hasData: !!query.data,
+      pagesCount: query.data?.pages?.length,
+      expensesCount: expenses.length,
+      isArray: Array.isArray(expenses),
+    });
+  }
 
   // Delete mutation
   const deleteMutation = useMutation({
