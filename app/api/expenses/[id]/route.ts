@@ -1,26 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { verifyToken } from '@/lib/auth/jwt';
-import { UserRole } from '@prisma/client';
+import { authenticateRequest, isAuthPayload } from '@/lib/auth/apiAuth';
+import { validateExpense } from '@/lib/validators/expenseValidator';
+import { UserRole, Prisma } from '@prisma/client';
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate request
+    const authResult = await authenticateRequest(request);
+    if (!isAuthPayload(authResult)) {
+      return authResult; // Return error response
     }
-
-    // Verify token
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const payload = authResult;
 
     const expenseId = params.id;
 
@@ -61,23 +55,33 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate request
+    const authResult = await authenticateRequest(request);
+    if (!isAuthPayload(authResult)) {
+      return authResult; // Return error response
     }
-
-    // Verify token
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const payload = authResult;
 
     const expenseId = params.id;
     const body = await request.json();
-    const { categoryId, amount, date, description, paymentMethod, notes, referenceId } = body;
+
+    // Validate input data
+    const validation = validateExpense(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: 'Validation failed',
+          details: validation.error.issues.map((issue) => ({
+            field: issue.path[0],
+            message: issue.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
+
+    const { categoryId, amount, date, description, paymentMethod, notes, referenceId } =
+      validation.data;
 
     // Get expense first
     const expense = await prisma.expense.findUnique({

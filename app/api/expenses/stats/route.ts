@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { verifyToken } from '@/lib/auth/jwt';
-import { UserRole } from '@prisma/client';
+import { authenticateRequest, isAuthPayload } from '@/lib/auth/apiAuth';
+import { UserRole, Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate request
+    const authResult = await authenticateRequest(request);
+    if (!isAuthPayload(authResult)) {
+      return authResult; // Return error response
     }
-
-    // Verify token
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const payload = authResult;
 
     // Get query parameters for filtering (same as main expenses endpoint)
     const { searchParams } = new URL(request.url);
@@ -28,7 +21,7 @@ export async function GET(request: NextRequest) {
     const paymentMethod = searchParams.get('paymentMethod');
 
     // Build where clause based on user role
-    const where: any = {};
+    const where: Prisma.ExpenseWhereInput = {};
 
     // Regular users can only see their own expenses
     if (payload.role === UserRole.user) {
@@ -41,9 +34,27 @@ export async function GET(request: NextRequest) {
     }
 
     if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      // Validate dates
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return NextResponse.json(
+          { error: 'Invalid date format. Use YYYY-MM-DD' },
+          { status: 400 }
+        );
+      }
+
+      if (start > end) {
+        return NextResponse.json(
+          { error: 'Start date must be before or equal to end date' },
+          { status: 400 }
+        );
+      }
+
       where.date = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
+        gte: start,
+        lte: end,
       };
     }
 

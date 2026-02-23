@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { verifyToken } from '@/lib/auth/jwt';
-import { UserRole } from '@prisma/client';
+import { authenticateRequest, isAuthPayload } from '@/lib/auth/apiAuth';
+import { validateExpense } from '@/lib/validators/expenseValidator';
+import { UserRole, Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate request
+    const authResult = await authenticateRequest(request);
+    if (!isAuthPayload(authResult)) {
+      return authResult; // Return error response
     }
-
-    // Verify token
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const payload = authResult;
 
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
@@ -30,7 +24,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
 
     // Build where clause based on user role
-    const where: any = {};
+    const where: Prisma.ExpenseWhereInput = {};
 
     // Regular users can only see their own expenses
     // Accountants and admins can see all expenses
@@ -44,9 +38,27 @@ export async function GET(request: NextRequest) {
     }
 
     if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      // Validate dates
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return NextResponse.json(
+          { error: 'Invalid date format. Use YYYY-MM-DD' },
+          { status: 400 }
+        );
+      }
+
+      if (start > end) {
+        return NextResponse.json(
+          { error: 'Start date must be before or equal to end date' },
+          { status: 400 }
+        );
+      }
+
       where.date = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
+        gte: start,
+        lte: end,
       };
     }
 
@@ -64,7 +76,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Cursor-based pagination
-    const queryOptions: any = {
+    const queryOptions: Prisma.ExpenseFindManyArgs = {
       where,
       include: {
         category: true,
@@ -120,30 +132,33 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate request
+    const authResult = await authenticateRequest(request);
+    if (!isAuthPayload(authResult)) {
+      return authResult; // Return error response
     }
-
-    // Verify token
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const payload = authResult;
 
     const body = await request.json();
-    const { categoryId, amount, date, description, paymentMethod, notes, referenceId, userId } = body;
 
-    // Validate required fields
-    if (!categoryId || !amount || !date || !description) {
+    // Validate input data
+    const validation = validateExpense(body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        {
+          error: 'Validation failed',
+          details: validation.error.issues.map((issue) => ({
+            field: issue.path[0],
+            message: issue.message,
+          })),
+        },
         { status: 400 }
       );
     }
+
+    const { categoryId, amount, date, description, paymentMethod, notes, referenceId } =
+      validation.data;
+    const { userId } = body; // userId is optional, for admin creating expense for another user
 
     // Determine userId - regular users can only create expenses for themselves
     let targetUserId = userId || payload.userId;

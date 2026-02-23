@@ -73,7 +73,7 @@ export function useExpensesV2(options: UseExpensesOptions = {}) {
     });
   }
 
-  // Delete mutation
+  // Delete mutation with optimistic updates
   const deleteMutation = useMutation({
     mutationFn: async (expenseId: string) => {
       if (!token) throw new Error('No authentication token');
@@ -92,8 +92,44 @@ export function useExpensesV2(options: UseExpensesOptions = {}) {
 
       return expenseId;
     },
-    onSuccess: () => {
-      // Invalidate and refetch
+    // Optimistic update - remove from UI immediately
+    onMutate: async (expenseId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['expenses'] });
+
+      // Snapshot the previous value
+      const previousData = queryClient.getQueryData(['expenses', { categoryId, startDate, endDate, search, paymentMethod }]);
+
+      // Optimistically update to remove the expense
+      queryClient.setQueryData(
+        ['expenses', { categoryId, startDate, endDate, search, paymentMethod }],
+        (old: any) => {
+          if (!old?.pages) return old;
+
+          return {
+            ...old,
+            pages: old.pages.map((page: ExpensesResponse) => ({
+              ...page,
+              expenses: page.expenses.filter((exp: Expense) => exp.id !== expenseId),
+            })),
+          };
+        }
+      );
+
+      // Return context for rollback
+      return { previousData };
+    },
+    // Rollback on error
+    onError: (err, expenseId, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          ['expenses', { categoryId, startDate, endDate, search, paymentMethod }],
+          context.previousData
+        );
+      }
+    },
+    // Always refetch after error or success
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
     },
   });
