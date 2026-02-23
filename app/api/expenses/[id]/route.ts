@@ -6,7 +6,7 @@ import { UserRole, Prisma } from '@prisma/client';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authenticate request
@@ -16,7 +16,7 @@ export async function DELETE(
     }
     const payload = authResult;
 
-    const expenseId = params.id;
+    const { id: expenseId } = await params;
 
     // Get expense first
     const expense = await prisma.expense.findUnique({
@@ -52,7 +52,7 @@ export async function DELETE(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authenticate request
@@ -62,7 +62,7 @@ export async function PUT(
     }
     const payload = authResult;
 
-    const expenseId = params.id;
+    const { id: expenseId } = await params;
     const body = await request.json();
 
     // Validate input data

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { authenticateRequest, isAuthPayload } from '@/lib/auth/apiAuth';
-import { UserRole, Prisma } from '@prisma/client';
+import { UserRole, Prisma, PaymentMethod } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (paymentMethod) {
-      where.paymentMethod = paymentMethod;
+      where.paymentMethod = paymentMethod as PaymentMethod;
     }
 
     // Get total count and sum

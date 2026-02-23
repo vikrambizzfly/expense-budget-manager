@@ -56,6 +56,7 @@ export function useExpensesV2(options: UseExpensesOptions = {}) {
     queryKey: ['expenses', { categoryId, startDate, endDate, search, paymentMethod }],
     queryFn: fetchExpenses,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    initialPageParam: undefined,
     enabled: enabled && !!token,
     staleTime: 60 * 1000, // 1 minute
   });
