@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useCategories } from '@/hooks/useCategories';
@@ -23,6 +24,7 @@ interface ExpenseFormProps {
 
 export function ExpenseForm({ expense, mode }: ExpenseFormProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, token } = useAuth();
   const { showToast } = useToast();
   const { categories, isLoading: categoriesLoading } = useCategories();
@@ -124,6 +126,9 @@ export function ExpenseForm({ expense, mode }: ExpenseFormProps) {
 
         showToast('success', 'Expense updated successfully');
       }
+
+      // Invalidate React Query cache to show new/updated expense
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
 
       router.push('/expenses');
     } catch (error: any) {
