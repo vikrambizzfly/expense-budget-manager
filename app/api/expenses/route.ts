@@ -24,6 +24,10 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('categoryId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const search = searchParams.get('search');
+    const paymentMethod = searchParams.get('paymentMethod');
+    const cursor = searchParams.get('cursor');
+    const limit = parseInt(searchParams.get('limit') || '50');
 
     // Build where clause based on user role
     const where: any = {};
@@ -46,7 +50,20 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const expenses = await prisma.expense.findMany({
+    if (search) {
+      where.OR = [
+        { description: { contains: search, mode: 'insensitive' } },
+        { notes: { contains: search, mode: 'insensitive' } },
+        { referenceId: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod;
+    }
+
+    // Cursor-based pagination
+    const queryOptions: any = {
       where,
       include: {
         category: true,
@@ -59,19 +76,38 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: {
-        date: 'desc',
+        createdAt: 'desc',
       },
-    });
+      take: limit + 1, // Take one extra to know if there are more
+    };
+
+    if (cursor) {
+      queryOptions.cursor = {
+        id: cursor,
+      };
+      queryOptions.skip = 1; // Skip the cursor
+    }
+
+    const expenses = await prisma.expense.findMany(queryOptions);
+
+    // Check if there are more results
+    const hasMore = expenses.length > limit;
+    const items = hasMore ? expenses.slice(0, limit) : expenses;
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
 
     // Format dates to ISO strings
-    const formattedExpenses = expenses.map((expense) => ({
+    const formattedExpenses = items.map((expense) => ({
       ...expense,
       date: expense.date.toISOString(),
       createdAt: expense.createdAt.toISOString(),
       updatedAt: expense.updatedAt?.toISOString(),
     }));
 
-    return NextResponse.json(formattedExpenses);
+    return NextResponse.json({
+      expenses: formattedExpenses,
+      nextCursor,
+      hasMore,
+    });
   } catch (error: any) {
     console.error('Get expenses error:', error);
     return NextResponse.json(
