@@ -1,0 +1,142 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Enums
+enum UserRole {
+  admin
+  accountant
+  user
+}
+
+enum PaymentMethod {
+  cash
+  credit_card
+  debit_card
+  upi
+  net_banking
+  other
+}
+
+enum BudgetPeriod {
+  monthly
+  annual
+}
+
+enum BudgetRolloverRule {
+  no_rollover
+  rollover_surplus
+  rollover_all
+}
+
+enum AuditAction {
+  create
+  update
+  delete
+}
+
+// Models
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(user)
+  password  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expenses        Expense[]
+  budgets         Budget[]
+  categoriesCreated Category[]
+  expensesCreated Expense[] @relation("ExpenseCreatedBy")
+  auditLogs       AuditLog[]
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  color       String
+  icon        String
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  creator  User      @relation(fields: [createdBy], references: [id])
+  expenses Expense[]
+  budgets  Budget[]
+
+  @@index([createdBy])
+}
+
+model Expense {
+  id            String         @id @default(uuid())
+  userId        String
+  categoryId    String
+  amount        Int // stored in cents
+  date          DateTime
+  description   String
+  paymentMethod PaymentMethod?
+  notes         String?
+  referenceId   String?
+  createdBy     String
+  createdAt     DateTime       @default(now())
+  updatedBy     String?
+  updatedAt     DateTime?      @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+  creator  User     @relation("ExpenseCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([date])
+  @@index([createdBy])
+}
+
+model Budget {
+  id           String             @id @default(uuid())
+  userId       String
+  categoryId   String
+  period       BudgetPeriod
+  amount       Int // stored in cents
+  rolloverRule BudgetRolloverRule
+  startDate    DateTime
+  endDate      DateTime
+  alertAt80    Boolean            @default(true)
+  alertAt100   Boolean            @default(true)
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([startDate, endDate])
+}
+
+model AuditLog {
+  id              String      @id @default(uuid())
+  entityType      String
+  entityId        String
+  action          AuditAction
+  performedBy     String
+  performedByName String
+  performedByRole UserRole
+  changes         String // JSON stringified array of AuditChange
+  timestamp       DateTime    @default(now())
+
+  user User @relation(fields: [performedBy], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([performedBy])
+  @@index([timestamp])
+}

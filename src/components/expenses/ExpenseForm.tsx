@@ -23,7 +23,7 @@ interface ExpenseFormProps {
 
 export function ExpenseForm({ expense, mode }: ExpenseFormProps) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { showToast } = useToast();
   const { categories, isLoading: categoriesLoading } = useCategories();
 
@@ -39,8 +39,6 @@ export function ExpenseForm({ expense, mode }: ExpenseFormProps) {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const expenseService = getExpenseService();
 
   useEffect(() => {
     // Set first category as default if none selected
@@ -70,7 +68,7 @@ export function ExpenseForm({ expense, mode }: ExpenseFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !token) return;
 
     setErrors({});
 
@@ -91,14 +89,39 @@ export function ExpenseForm({ expense, mode }: ExpenseFormProps) {
 
     try {
       if (mode === 'create') {
-        await expenseService.createExpense(formData, user.id);
+        const response = await fetch('/api/expenses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ...formData,
+            userId: user.id,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create expense');
+        }
+
         showToast('success', 'Expense created successfully');
       } else if (expense) {
-        await expenseService.updateExpense(
-          expense.id,
-          formData,
-          { userId: user.id, role: user.role }
-        );
+        const response = await fetch(`/api/expenses/${expense.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to update expense');
+        }
+
         showToast('success', 'Expense updated successfully');
       }
 

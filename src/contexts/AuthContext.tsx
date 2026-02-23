@@ -2,8 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { SafeUser, LoginCredentials, RegisterData } from '@/types/models';
-import { getAuthService } from '@/lib/services/AuthService';
-import { verifyToken } from '@/lib/auth/jwt';
 
 interface AuthContextType {
   user: SafeUser | null;
@@ -25,8 +23,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const authService = getAuthService();
-
   // Initialize auth state from localStorage
   useEffect(() => {
     const initAuth = async () => {
@@ -35,10 +31,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const storedUser = localStorage.getItem(USER_KEY);
 
         if (storedToken && storedUser) {
-          // Verify token is still valid
-          const payload = verifyToken(storedToken);
+          // Verify token is still valid via API
+          const response = await fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: storedToken }),
+          });
 
-          if (payload) {
+          if (response.ok) {
             setToken(storedToken);
             setUser(JSON.parse(storedUser));
           } else {
@@ -61,33 +61,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (credentials: LoginCredentials) => {
-    try {
-      const authToken = await authService.login(credentials);
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials),
+    });
 
-      setUser(authToken.user);
-      setToken(authToken.token);
+    const data = await response.json();
 
-      // Persist to localStorage
-      localStorage.setItem(TOKEN_KEY, authToken.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(authToken.user));
-    } catch (error) {
-      throw error;
+    if (!response.ok) {
+      throw new Error(data.error || 'Login failed');
     }
+
+    setUser(data.user);
+    setToken(data.token);
+
+    // Persist to localStorage
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
   };
 
   const register = async (data: RegisterData) => {
-    try {
-      const authToken = await authService.register(data);
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
 
-      setUser(authToken.user);
-      setToken(authToken.token);
+    const result = await response.json();
 
-      // Persist to localStorage
-      localStorage.setItem(TOKEN_KEY, authToken.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(authToken.user));
-    } catch (error) {
-      throw error;
+    if (!response.ok) {
+      throw new Error(result.error || 'Registration failed');
     }
+
+    setUser(result.user);
+    setToken(result.token);
+
+    // Persist to localStorage
+    localStorage.setItem(TOKEN_KEY, result.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(result.user));
   };
 
   const logout = () => {

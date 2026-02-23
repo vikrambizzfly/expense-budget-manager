@@ -1,51 +1,46 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Budget, BudgetFilters, BudgetStatus } from '@/types/models';
-import { getBudgetService } from '@/lib/services/BudgetService';
+import { BudgetStatus, BudgetFilters } from '@/types/models';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function useBudgets(initialFilters: BudgetFilters = {}) {
-  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [budgetStatuses, setBudgetStatuses] = useState<BudgetStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<BudgetFilters>(initialFilters);
 
-  const { user } = useAuth();
-  const budgetService = getBudgetService();
+  const { user, token } = useAuth();
 
   const loadBudgets = useCallback(async () => {
-    if (!user) return;
+    if (!user || !token) return;
 
     try {
       setIsLoading(true);
       setError(null);
 
-      const [budgetsData, statusesData] = await Promise.all([
-        budgetService.getBudgets(filters, {
-          userId: user.id,
-          role: user.role,
-        }),
-        budgetService.getBudgetStatuses(filters, {
-          userId: user.id,
-          role: user.role,
-        }),
-      ]);
+      const response = await fetch('/api/budgets', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-      setBudgets(budgetsData);
-      setBudgetStatuses(statusesData);
+      if (!response.ok) {
+        throw new Error('Failed to load budgets');
+      }
+
+      const data = await response.json();
+      setBudgetStatuses(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load budgets');
     } finally {
       setIsLoading(false);
     }
-  }, [user, filters]);
+  }, [user, token]);
 
   useEffect(() => {
     loadBudgets();
   }, [loadBudgets]);
 
   return {
-    budgets,
     budgetStatuses,
     isLoading,
     error,

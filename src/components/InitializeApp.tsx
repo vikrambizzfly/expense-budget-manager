@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { initializeDatabase } from '@/lib/storage/migrations';
 
 /**
  * Component to initialize the database on first load
@@ -12,7 +11,15 @@ export function InitializeApp({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const init = async () => {
       try {
-        await initializeDatabase();
+        // Call the server-side initialization API
+        const response = await fetch('/api/init', {
+          method: 'POST',
+        });
+
+        if (!response.ok) {
+          console.error('Failed to initialize database');
+        }
+
         setIsInitialized(true);
       } catch (error) {
         console.error('Failed to initialize database:', error);

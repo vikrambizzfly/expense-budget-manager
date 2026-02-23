@@ -1,18 +1,15 @@
 import { useState, useEffect } from 'react';
-import { AuditLog, AuditLogFilter, UserRole } from '@/types/models';
-import { AuditService } from '@/lib/services/AuditService';
+import { AuditLog, AuditLogFilter } from '@/types/models';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function useAuditLogs(filters?: AuditLogFilter) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const auditService = new AuditService();
-
   const fetchLogs = async () => {
-    if (!user) {
+    if (!user || !token) {
       setIsLoading(false);
       return;
     }
@@ -20,7 +17,22 @@ export function useAuditLogs(filters?: AuditLogFilter) {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await auditService.getAuditLogs(user.role as UserRole, filters);
+
+      const params = new URLSearchParams();
+      if (filters?.entityType) params.append('entityType', filters.entityType);
+      if (filters?.action) params.append('action', filters.action);
+
+      const response = await fetch(`/api/audit?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch audit logs');
+      }
+
+      const data = await response.json();
       setLogs(data);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch audit logs');
@@ -34,6 +46,7 @@ export function useAuditLogs(filters?: AuditLogFilter) {
     fetchLogs();
   }, [
     user,
+    token,
     filters?.entityType,
     filters?.action,
     filters?.performedBy,
@@ -60,8 +73,6 @@ export function useAuditStats() {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const auditService = new AuditService();
-
   useEffect(() => {
     const fetchStats = async () => {
       if (!user) {
@@ -71,8 +82,8 @@ export function useAuditStats() {
 
       try {
         setIsLoading(true);
-        const data = await auditService.getAuditStats(user.role as UserRole);
-        setStats(data);
+        // TODO: Create stats API endpoint if needed
+        setStats(null);
       } catch (err) {
         setStats(null);
       } finally {
