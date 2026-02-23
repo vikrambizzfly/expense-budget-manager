@@ -18,7 +18,7 @@ import { Expense, PaymentMethod } from '@/types/models';
 import { PAYMENT_METHOD_OPTIONS } from '@/types/forms';
 
 export default function ExpensesPageV2() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { showToast } = useToast();
   const { categories } = useCategories();
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -45,7 +45,7 @@ export default function ExpensesPageV2() {
   // Fetch stats (total count and amount)
   useEffect(() => {
     const fetchStats = async () => {
-      if (!user?.id) return;
+      if (!user || !token) return;
 
       const params = new URLSearchParams();
       if (categoryFilter) params.append('categoryId', categoryFilter);
@@ -55,7 +55,7 @@ export default function ExpensesPageV2() {
       if (paymentMethodFilter) params.append('paymentMethod', paymentMethodFilter);
 
       try {
-        const token = localStorage.getItem('token');
+        console.log('Fetching expense stats...');
         const response = await fetch(`/api/expenses/stats?${params.toString()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -64,7 +64,10 @@ export default function ExpensesPageV2() {
 
         if (response.ok) {
           const data = await response.json();
+          console.log('Stats fetched:', data);
           setStats(data);
+        } else {
+          console.error('Failed to fetch stats:', response.status);
         }
       } catch (error) {
         console.error('Failed to fetch stats:', error);
@@ -72,7 +75,7 @@ export default function ExpensesPageV2() {
     };
 
     fetchStats();
-  }, [user?.id, categoryFilter, startDateFilter, endDateFilter, debouncedSearch, paymentMethodFilter]);
+  }, [user, token, categoryFilter, startDateFilter, endDateFilter, debouncedSearch, paymentMethodFilter]);
 
   // Use improved hook
   const {
