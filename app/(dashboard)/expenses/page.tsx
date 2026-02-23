@@ -33,11 +33,11 @@ export default function ExpensesPageV2() {
   const [showFilters, setShowFilters] = useState(false);
   const [stats, setStats] = useState<{ totalCount: number; totalAmount: number } | null>(null);
 
-  // Debounce search
+  // Debounce search - reduced to 150ms for faster response
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-    }, 300);
+    }, 150);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -199,18 +199,23 @@ export default function ExpensesPageV2() {
         <div className="space-y-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors ${
+              isLoading && searchQuery ? 'text-blue-500 animate-pulse' : 'text-gray-400'
+            }`} />
             <input
               type="text"
               placeholder="Search expenses by description, notes, or reference..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoFocus
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                type="button"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors p-1 hover:bg-gray-100 rounded"
+                title="Clear search"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -236,13 +241,23 @@ export default function ExpensesPageV2() {
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  className="text-sm text-blue-600 hover:text-blue-700 transition-colors font-medium"
                 >
                   Clear all
                 </button>
               )}
-              <span className="text-sm text-gray-600">
-                {expenses.length} expenses
+              <span className="text-sm text-gray-600 flex items-center gap-2">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    {expenses.length} {searchQuery ? 'found' : 'expenses'}
+                    {stats && searchQuery && ` of ${stats.totalCount}`}
+                  </>
+                )}
               </span>
             </div>
           </div>
