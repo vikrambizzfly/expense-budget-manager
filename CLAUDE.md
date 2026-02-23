@@ -1,358 +1,307 @@
-# CLAUDE.md
+# Project: Expense & Budget Manager
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Development Commands
+## Core Principles
 
-### Running the Application
-```bash
-npm run dev          # Start dev server (usually localhost:3000)
-npm run build        # Build for production
-npm start            # Start production server
-npm run lint         # Run ESLint
-```
+1. **SOLID Design Patterns**: Follow Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, and Dependency Inversion principles
+2. **Strict TypeScript**: No `any` types, proper interfaces, comprehensive type safety
+3. **Separation of Concerns**: Clear boundaries between UI, business logic, and data layers
+4. **Test-Driven Development**: Write tests before implementation
+5. **Clean Code**: Self-documenting code with minimal comments, meaningful names
 
-### Database Operations
-```bash
-# Seed database with demo users and categories
-npx prisma db seed
+## Development Workflow
 
-# Add more sample expenses for testing
-npx tsx prisma/seed-expenses.ts
+### Commands
+- **Development**: `npm run dev` (Next.js on port 3000)
+- **Build**: `npm run build`
+- **Database**:
+  - Generate Prisma client: `npx prisma generate`
+  - Create migration: `npx prisma migrate dev --name <name>`
+  - Seed database: `npx ts-node prisma/seed-expenses.ts`
+  - Studio: `npx prisma studio`
+- **Linting**: `npm run lint`
+- **Type Check**: `npx tsc --noEmit`
 
-# View database in Prisma Studio
-npx prisma studio
+### Feature Branch Strategy
+- Create feature branches for each improvement/module
+- Test thoroughly before merging to master
+- Use descriptive branch names: `feature/expense-pagination`, `fix/search-case-sensitivity`
 
-# Create migration after schema changes
-npx prisma migrate dev --name description_of_change
+## Architecture Overview
 
-# Generate Prisma Client after schema changes
-npx prisma generate
-```
+### Tech Stack
+- **Framework**: Next.js 16.1.6 (App Router)
+- **Language**: TypeScript (strict mode)
+- **Database**: SQLite (development) with Prisma ORM 7.4.1
+- **State Management**: React Query (@tanstack/react-query)
+- **Authentication**: JWT with role-based access control
+- **Styling**: Tailwind CSS
 
-### Demo Accounts
-- **Admin**: admin@example.com / admin123
-- **Accountant**: accountant@example.com / accountant123
-- **User**: user@example.com / user123
+### Critical Requirements
 
-## Critical Architecture Patterns
-
-### 1. Prisma with LibSQL Adapter (REQUIRED)
-
-**⚠️ IMPORTANT**: This project uses Prisma 7 with the LibSQL adapter for SQLite. When creating new Prisma client instances (seeds, migrations, utilities), you MUST use:
+#### LibSQL Adapter (MANDATORY)
+All Prisma client instantiations MUST use the LibSQL adapter:
 
 ```typescript
 import { PrismaClient } from '@prisma/client';
 import { PrismaLibSql } from '@prisma/adapter-libsql';
 
-const adapter = new PrismaLibSql({
-  url: 'file:./prisma/dev.db',
-});
-
+const adapter = new PrismaLibSql({ url: 'file:./prisma/dev.db' });
 const prisma = new PrismaClient({ adapter });
 ```
 
-**❌ This will fail:**
-```typescript
-const prisma = new PrismaClient(); // Missing adapter!
-```
+**Files requiring adapter**:
+- `lib/db/prisma.ts` (global instance)
+- Any seed scripts
+- Any standalone database scripts
 
-See `src/lib/db/prisma.ts` for the canonical implementation.
-
-### 2. API Routes Architecture
-
-All API routes follow Next.js 13+ App Router conventions in `app/api/`:
-
-```
-app/api/
-├── auth/
-│   ├── login/route.ts       # POST - JWT authentication
-│   ├── register/route.ts    # POST - User registration
-│   └── verify/route.ts      # GET - Verify JWT token
-├── expenses/
-│   ├── route.ts             # GET (paginated), POST
-│   ├── [id]/route.ts        # PUT, DELETE
-│   └── stats/route.ts       # GET - Total count & amount
-├── budgets/route.ts         # GET, POST
-├── categories/route.ts      # GET, POST (admin only)
-├── users/route.ts           # GET, POST, PUT, DELETE (admin only)
-└── audit/route.ts          # GET (admin/accountant only)
-```
-
-**Authentication Pattern**: All protected routes follow this structure:
-
-```typescript
-export async function GET(request: NextRequest) {
-  // 1. Extract and verify JWT token
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
-  const payload = verifyToken(token);
-
-  // 2. Apply role-based filtering
-  if (payload.role === UserRole.user) {
-    where.userId = payload.userId; // Users see only their data
-  }
-  // Admins/accountants see all
-
-  // 3. Execute query and return
-}
-```
-
-### 3. React Query Integration (Phase 1 Feature)
-
-The `/expenses` page uses React Query for caching and infinite scroll:
-
-- **Hook**: `useExpensesV2` (new) vs `useExpenses` (old, used by dashboards)
-- **Invalidation**: After mutations, invalidate with `queryClient.invalidateQueries({ queryKey: ['expenses'] })`
-- **Provider**: QueryProvider wraps the app in `app/layout.tsx`
-
-**Old vs New Hooks**:
-- `useExpenses`: Returns `Expense[]`, used by Dashboard V1/V2/V3
-- `useExpensesV2`: Returns paginated data with infinite scroll, used by `/expenses` page
-
-### 4. Dashboard Versions
-
-Three dashboard implementations available in `app/(dashboard)/`:
-
-```typescript
-// app/(dashboard)/dashboard-v1-gradient.tsx - Modern glassmorphism
-// app/(dashboard)/dashboard-v2-minimal.tsx  - Clean, Apple-like
-// app/(dashboard)/dashboard-v3-analytics.tsx - Data-rich (default)
-```
-
-Switch by updating `app/page.tsx`:
-```typescript
-if (isAuthenticated) {
-  return <DashboardV3Analytics />; // Change this import
-}
-```
-
-### 5. Authentication Flow
-
-**JWT-based authentication** (server-side only, no client-side crypto):
-
-1. Login: `POST /api/auth/login` → returns JWT token + user data
-2. Client stores token in localStorage (via AuthContext)
-3. All API requests include `Authorization: Bearer ${token}` header
-4. Server verifies with `verifyToken()` from `src/lib/auth/jwt.ts`
-
-**Role-based Access**:
-- `admin`: Full access to everything
-- `accountant`: Read all expenses/budgets, view audit logs
-- `user`: CRUD own expenses/budgets only
-
-## Critical Implementation Details
-
-### Currency Handling
-All amounts stored in **cents** (integers) to avoid floating-point errors:
-
-```typescript
-// ✅ Correct
-const amountInCents = Math.round(dollarAmount * 100);
-
-// ❌ Wrong
-const amountInDollars = 10.50; // Store as 1050 instead
-```
-
-Use utilities:
-- `dollarsToCents(10.50)` → 1050
-- `centsToDollars(1050)` → 10.50
-- `formatCurrency(1050)` → "$10.50"
-
-### Search with SQLite Limitation
-
-SQLite doesn't support case-insensitive `contains` in Prisma:
-
-```typescript
-// ✅ Works with SQLite
-where.OR = [
-  { description: { contains: search } }, // Case-sensitive
-];
-
-// ❌ Fails with SQLite (PostgreSQL-only)
-where.OR = [
-  { description: { contains: search, mode: 'insensitive' } },
-];
-```
-
-Plan: Migrate to PostgreSQL for case-insensitive search.
-
-### Pagination Response Format
-
-The expenses API returns paginated data:
-
-```typescript
-// Response format
-{
-  expenses: Expense[],      // Current page items
-  nextCursor: string | null, // Cursor for next page
-  hasMore: boolean          // Whether more pages exist
-}
-```
-
-Old endpoints may return `Expense[]` directly. Handle both:
-
-```typescript
-const expenses = Array.isArray(data) ? data : (data.expenses || []);
-```
-
-### Route Groups & Layouts
-
+### Directory Structure
 ```
 app/
-├── (auth)/           # Route group - doesn't affect URL
-│   ├── layout.tsx   # Centered auth layout
-│   ├── login/page.tsx
-│   └── register/page.tsx
-├── (dashboard)/      # Route group - doesn't affect URL
-│   ├── layout.tsx   # Sidebar + protected route wrapper
-│   ├── expenses/page.tsx
-│   └── budgets/page.tsx
-├── page.tsx         # Root "/" - conditionally renders dashboard or landing
-└── landing-page.tsx # Separated landing page component
+  (dashboard)/          # Protected dashboard routes
+  api/                  # API routes
+  (auth)/              # Authentication routes
+src/
+  components/          # Reusable UI components
+    ui/               # Base UI primitives
+  contexts/           # React contexts
+  hooks/              # Custom React hooks
+  lib/
+    db/               # Database utilities
+    services/         # Business logic services
+    utils/            # Helper utilities
+    validators/       # Data validation
+  types/              # TypeScript type definitions
+prisma/
+  schema.prisma       # Database schema
+  migrations/         # Database migrations
 ```
 
-**Important**: Route groups `(auth)` and `(dashboard)` don't add to URLs. Both `/login` and `/expenses` render at their respective paths without prefixes.
+## API Design
 
-## Common Development Workflows
+### Route Structure
+- `/api/expenses` - GET (list with pagination), POST (create)
+- `/api/expenses/[id]` - GET (single), PUT (update), DELETE (delete)
+- `/api/expenses/stats` - GET (totals and counts)
+- `/api/budgets` - Similar pattern
+- `/api/categories` - Similar pattern
 
-### Adding a New Feature to Expenses Page
+### Pagination Pattern
+All list endpoints use cursor-based pagination:
 
-1. **Update API** if needed (`app/api/expenses/route.ts`)
-2. **Update hook** (`src/hooks/useExpensesV2.ts`)
-3. **Invalidate cache** after mutations:
-   ```typescript
-   queryClient.invalidateQueries({ queryKey: ['expenses'] });
-   ```
-4. **Test** with search, filters, and infinite scroll
+```typescript
+// Request
+?cursor=<id>&limit=50
 
-### Adding a New API Endpoint
-
-1. Create route file: `app/api/your-feature/route.ts`
-2. Implement HTTP method exports: `GET`, `POST`, `PUT`, `DELETE`
-3. Add JWT verification (copy pattern from existing routes)
-4. Apply role-based access control
-5. Return JSON with `NextResponse.json()`
-
-### Database Schema Changes
-
-1. Edit `prisma/schema.prisma`
-2. Run `npx prisma migrate dev --name your_change`
-3. Run `npx prisma generate` to update client
-4. Update TypeScript types if needed
-5. Update seed scripts if adding required fields
-
-### Working with Feature Branches
-
-The project uses Git Flow with feature branches:
-
-```bash
-# Current development branch
-git checkout feature/expense-management-v2
-
-# Create new feature branch
-git checkout -b feature/your-feature-name
-
-# Merge to master when ready
-git checkout master
-git merge feature/your-feature-name
+// Response
+{
+  items: [...],
+  nextCursor: "id" | null,
+  hasMore: boolean
+}
 ```
-
-## Key Files to Understand
-
-### Core Configuration
-- `prisma/schema.prisma` - Database schema (User, Expense, Budget, Category, AuditLog)
-- `src/lib/db/prisma.ts` - Prisma client with LibSQL adapter
-- `src/lib/auth/jwt.ts` - JWT token generation/verification
-- `app/layout.tsx` - Root layout with QueryProvider, AuthProvider, ToastProvider
-
-### Type Definitions
-- `src/types/models.ts` - Core data models
-- `src/types/forms.ts` - Form-specific types and constants
 
 ### Authentication
-- `src/contexts/AuthContext.tsx` - Auth state and login/logout logic
-- `app/api/auth/*` - Auth endpoints (login, register, verify)
-- `src/components/auth/ProtectedRoute.tsx` - Route guard component
-
-### State Management
-- React Query for server state (expenses list, stats)
-- React Context for auth state and toasts
-- Local component state for forms and UI
-
-## Testing Considerations
-
-### Manual Testing Checklist
-1. **Auth flow**: Login → redirects to dashboard → logout → redirects to landing
-2. **Expenses**: Add → appears immediately (cache invalidation works)
-3. **Search**: Type → debounced 150ms → results filter
-4. **Infinite scroll**: Scroll down → loads more (50 at a time)
-5. **Filters**: Apply category/date/payment filters → results update
-6. **Grand total**: Should NOT change as you scroll (fetched from stats API)
-7. **Role-based access**: Try accountant/user accounts → verify permissions
-
-### Database Testing
-```bash
-# Check record counts
-sqlite3 prisma/dev.db "SELECT COUNT(*) FROM Expense;"
-
-# Check users
-sqlite3 prisma/dev.db "SELECT email, role FROM User;"
-
-# Reset database
-rm prisma/dev.db
-npx prisma migrate dev
-npx prisma db seed
+All protected routes require JWT token in Authorization header:
+```
+Authorization: Bearer <token>
 ```
 
-## Production Migration Path
+### Role-Based Access
+- **user**: Can only see/modify their own data
+- **accountant**: Can view all data
+- **admin**: Full access
 
-### Database Migration (SQLite → PostgreSQL)
+## Data Handling
 
-1. Set up PostgreSQL (recommended: Neon.tech for free tier)
-2. Update `prisma/schema.prisma`:
-   ```prisma
-   datasource db {
-     provider = "postgresql"  // Change from sqlite
-     url      = env("DATABASE_URL")
-   }
-   ```
-3. Remove LibSQL adapter from `src/lib/db/prisma.ts`:
-   ```typescript
-   // New PostgreSQL version (no adapter needed)
-   const prisma = new PrismaClient({
-     log: process.env.NODE_ENV === 'development' ? ['query'] : [],
-   });
-   ```
-4. Enable case-insensitive search:
-   ```typescript
-   where.OR = [
-     { description: { contains: search, mode: 'insensitive' } }, // Now works!
-   ];
-   ```
-5. Run migrations: `npx prisma migrate dev`
-6. Seed data: `npx prisma db seed`
+### Currency
+- Store as **cents (integer)** to avoid floating-point errors
+- Convert to dollars for display: `centsToDollars(amount)`
+- Convert from dollars for storage: `Math.round(amount * 100)`
 
-## Known Issues & Gotchas
+### Dates
+- Store as ISO strings in database
+- Use utility functions: `formatDate()`, `formatInputDate()`, `getTodayInputDate()`
 
-1. **Total changes on scroll**: Fixed with `/api/expenses/stats` endpoint
-2. **New expense doesn't appear**: Fixed with React Query cache invalidation
-3. **Search case-sensitive**: SQLite limitation, will be fixed with PostgreSQL migration
-4. **Input text too light**: Fixed with `text-gray-900` class on all inputs
-5. **Dashboard shows landing page**: Fixed by conditional rendering in `app/page.tsx`
+### Search
+- Current: Case-sensitive (SQLite limitation)
+- Future: Case-insensitive when migrated to PostgreSQL
 
-## Performance Optimizations Applied
+## Component Guidelines
 
-- **Cursor-based pagination**: Loads 50 expenses at a time vs all at once
-- **React Query caching**: 1-minute stale time, reduces API calls
-- **Debounced search**: 150ms delay prevents excessive API requests
-- **Infinite scroll**: Intersection Observer for smooth loading
-- **Stats endpoint**: Separate API call for grand total (doesn't recalculate on scroll)
+### UI Components (src/components/ui/)
+- **Reusable primitives**: Button, Input, Select, Card
+- **Props interface**: Always define explicit TypeScript interfaces
+- **Accessibility**: Include proper ARIA labels, keyboard navigation
+- **Styling**: Use Tailwind CSS utilities, support dark mode (future)
 
-## File Naming Conventions
+### Form Components
+- **Validation**: Use Zod schemas via `lib/validators/`
+- **Error handling**: Display field-level errors
+- **Loading states**: Show spinners during submission
+- **Success feedback**: Use Toast context for notifications
 
-- **Components**: PascalCase (e.g., `ExpenseForm.tsx`)
-- **Utilities**: camelCase (e.g., `formatCurrency.ts`)
-- **Hooks**: camelCase with `use` prefix (e.g., `useExpenses.ts`)
-- **API routes**: lowercase `route.ts` in folder structure
-- **Types**: PascalCase for interfaces/types (e.g., `Expense`, `UserRole`)
+### Data Components
+- **React Query**: Use for all server state
+- **Infinite scroll**: Use `useInfiniteQuery` for lists
+- **Optimistic updates**: Update cache immediately, rollback on error
+- **Cache invalidation**: Invalidate after mutations
+
+## Testing Strategy
+
+### Unit Tests
+- Test utilities and validators
+- Test service layer functions
+- Mock external dependencies
+
+### Integration Tests
+- Test API routes with test database
+- Test authentication flows
+- Test role-based access control
+
+### E2E Tests (Future)
+- Critical user flows
+- Cross-browser compatibility
+
+## Performance Optimization
+
+### Current Optimizations
+- Cursor-based pagination (scalable to millions of records)
+- React Query caching (reduces API calls by 90%)
+- Debounced search (150ms for responsive UX)
+- Intersection Observer for infinite scroll
+- Server-side filtering and sorting
+
+### Future Improvements
+- Implement Redis caching layer
+- Add database indexes for common queries
+- Optimize bundle size with code splitting
+- Add service worker for offline support
+
+## Known Issues & Limitations
+
+### SQLite Limitations
+1. **Case-sensitive search**: No `mode: 'insensitive'` support
+2. **Limited concurrency**: Single-writer limitation
+3. **No built-in full-text search**: Relies on `LIKE` queries
+
+**Migration Path**: Plan to migrate to PostgreSQL for production
+
+### Browser Compatibility
+- Tested on: Chrome, Firefox, Safari (latest versions)
+- Not tested on: IE, older browsers
+
+## Security Considerations
+
+### Authentication
+- JWT tokens stored in localStorage (consider httpOnly cookies for production)
+- Token expiration: 24 hours
+- Password hashing: bcrypt with 10 rounds
+
+### Authorization
+- Server-side role checks on all protected routes
+- Client-side role checks for UI only (not security boundary)
+
+### Input Validation
+- Server-side validation using Zod
+- Client-side validation for UX
+- Sanitize all user inputs
+
+### SQL Injection
+- Protected by Prisma parameterized queries
+- Never construct raw SQL with user input
+
+## Code Quality Standards
+
+### TypeScript
+- Strict mode enabled
+- No `any` types (use `unknown` if needed)
+- Explicit return types for functions
+- Comprehensive interfaces for all data structures
+
+### Code Style
+- 2-space indentation
+- Single quotes for strings
+- Trailing commas in objects/arrays
+- Max line length: 100 characters
+
+### Naming Conventions
+- **Components**: PascalCase (ExpenseForm)
+- **Files**: PascalCase for components, camelCase for utilities
+- **Functions**: camelCase (getUserExpenses)
+- **Constants**: UPPER_SNAKE_CASE (PAYMENT_METHOD_OPTIONS)
+- **Types/Interfaces**: PascalCase (ExpenseFormData)
+
+### Error Handling
+- Always catch errors in async functions
+- Provide user-friendly error messages
+- Log detailed errors for debugging
+- Use Toast notifications for user feedback
+
+## Common Workflows
+
+### Adding a New Feature
+1. Create feature branch
+2. Write tests first (TDD)
+3. Implement feature
+4. Update types and interfaces
+5. Add API endpoints if needed
+6. Update UI components
+7. Test thoroughly
+8. Update documentation
+9. Merge to master
+
+### Fixing a Bug
+1. Reproduce the bug
+2. Write a failing test
+3. Fix the bug
+4. Verify test passes
+5. Check for regressions
+6. Commit with descriptive message
+
+### Database Schema Changes
+1. Update `prisma/schema.prisma`
+2. Run `npx prisma migrate dev --name <description>`
+3. Update TypeScript types
+4. Update seed scripts if needed
+5. Test migrations on clean database
+
+## Future Roadmap
+
+### Phase 1: Foundation & Performance ✅
+- Cursor-based pagination
+- React Query integration
+- Search and filtering
+- Infinite scroll
+
+### Phase 2: Enhanced UX
+- Advanced analytics dashboard
+- Export functionality (CSV, PDF)
+- Bulk operations
+- Keyboard shortcuts
+
+### Phase 3: Collaboration
+- Multi-user budgets
+- Expense approvals
+- Comments and notes
+- Activity audit trail
+
+### Phase 4: Intelligence
+- Expense categorization AI
+- Budget recommendations
+- Spending insights
+- Anomaly detection
+
+### Phase 5: Scale
+- PostgreSQL migration
+- Redis caching
+- Microservices architecture
+- Horizontal scaling
+
+## Support & Resources
+
+- **Next.js Docs**: https://nextjs.org/docs
+- **Prisma Docs**: https://www.prisma.io/docs
+- **React Query Docs**: https://tanstack.com/query/latest
+- **Tailwind CSS**: https://tailwindcss.com/docs
