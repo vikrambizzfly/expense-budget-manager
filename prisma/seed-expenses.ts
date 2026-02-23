@@ -96,8 +96,9 @@ const paymentMethods: PaymentMethod[] = [
   PaymentMethod.cash,
   PaymentMethod.credit_card,
   PaymentMethod.debit_card,
-  PaymentMethod.bank_transfer,
-  PaymentMethod.digital_wallet,
+  PaymentMethod.upi,
+  PaymentMethod.net_banking,
+  PaymentMethod.other,
 ];
 
 async function seedExpenses() {
