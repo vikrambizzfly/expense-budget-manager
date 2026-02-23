@@ -51,10 +51,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      // SQLite doesn't support mode: 'insensitive', so we use contains without mode
       where.OR = [
-        { description: { contains: search, mode: 'insensitive' } },
-        { notes: { contains: search, mode: 'insensitive' } },
-        { referenceId: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search } },
+        { notes: { contains: search } },
+        { referenceId: { contains: search } },
       ];
     }
 
